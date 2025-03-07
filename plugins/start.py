@@ -290,55 +290,59 @@ Unsuccessful: <code>{unsuccessful}</code></b>"""
 
 ###===========================================###
 
+
 @Bot.on_message(filters.private & filters.command('forward') & filters.user(ADMINS))
-async def forward_message(client: Bot, message: Message):
-    if message.reply_to_message:
-        query = await full_userbase()
-        forward_msg = message.reply_to_message
-        total = 0
-        successful = 0
-        blocked = 0
-        deleted = 0
-        unsuccessful = 0
-
-        pls_wait = await message.reply("<i>Forwarding Message.. This will Take Some Time</i>")
-        
-        for chat_id in query:
-            try:
-                sent_msg = await forward_msg.forward(chat_id)  # Forward Message
-                await client.pin_chat_message(chat_id, sent_msg.id)  # Pin the Message
-                successful += 1
-            except FloodWait as e:
-                await asyncio.sleep(e.x)
-                sent_msg = await forward_msg.forward(chat_id)
-                await client.pin_chat_message(chat_id, sent_msg.id)
-                successful += 1
-            except UserIsBlocked:
-                await del_user(chat_id)
-                blocked += 1
-            except InputUserDeactivated:
-                await del_user(chat_id)
-                deleted += 1
-            except Exception as e:
-                unsuccessful += 1
-                pass
-            
-            total += 1
-
-        status = f"""<b><u>Forward Completed</u>
-
-Total Users: <code>{total}</code>
-Successful: <code>{successful}</code>
-Blocked Users: <code>{blocked}</code>
-Deleted Accounts: <code>{deleted}</code>
-Unsuccessful: <code>{unsuccessful}</code></b>"""
-        
-        return await pls_wait.edit(status)
-
-    else:
+async def forward_and_pin(client: Bot, message: Message):
+    if not message.reply_to_message:
         msg = await message.reply("<i>Please reply to a message to forward it.</i>")
-        await asyncio.sleep(8)
-        await msg.delete()
+        await asyncio.sleep(5)
+        return await msg.delete()
+
+    query = await full_userbase()
+    forward_msg = message.reply_to_message
+    total = len(query)
+    successful = 0
+    blocked = 0
+    deleted = 0
+    unsuccessful = 0
+
+    pls_wait = await message.reply(f"<i>Forwarding & Pinning Message to {total} users... This may take some time.</i>")
+
+    for chat_id in query:
+        try:
+            sent_msg = await forward_msg.forward(chat_id)  # **Forward the Message**
+            await asyncio.sleep(0.5)  # Prevent Flood
+
+            # **Force Pin (Pin same message in user chat)**
+            await client.pin_chat_message(chat_id, sent_msg.id, disable_notification=False)  # **Pin Forwarded Message**
+            
+            successful += 1
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+            sent_msg = await forward_msg.forward(chat_id)
+            await client.pin_chat_message(chat_id, sent_msg.id, disable_notification=False)
+            successful += 1
+        except ChatAdminRequired:
+            unsuccessful += 1  # Bot can't pin in private chats, but adding this for safety
+        except UserIsBlocked:
+            await del_user(chat_id)
+            blocked += 1
+        except InputUserDeactivated:
+            await del_user(chat_id)
+            deleted += 1
+        except Exception as e:
+            unsuccessful += 1
+
+    status = f"""<b><u>Forward & Pin Completed ✅</u>
+
+👤 Total Users: <code>{total}</code>
+✅ Successful: <code>{successful}</code>
+⛔ Blocked Users: <code>{blocked}</code>
+💀 Deleted Accounts: <code>{deleted}</code>
+⚠️ Unsuccessful: <code>{unsuccessful}</code></b>"""
+
+    await pls_wait.edit(status)
+ 
      
 
 
